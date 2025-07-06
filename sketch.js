@@ -437,9 +437,8 @@ function drawLumenoAsciiLogo() {
   const numbersAreaHeight = numbersAreaBottom - numbersAreaTop;
   const numbersAreaWidth = g.width;
   
-  // Центрируем логотип в области с цифрами, но поднимаем выше
   const centerX = numbersAreaWidth / 2;
-  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 50;
+  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 35;
   
   // Настройки для ASCII текста
   g.textFont('Courier New', 'monospace');
@@ -513,7 +512,7 @@ function drawTop(percent) {
   if (macrodataFile) {
     g.fill(palette.FG);
     g.stroke(palette.BG);
-    g.text(macrodataFile.fileName, w * 0.175, 50);
+    g.text(macrodataFile.fileName, w * 0.210, 50);
   }
   g.fill(palette.BG);
   g.stroke(palette.FG);
@@ -525,7 +524,7 @@ function isInLogoArea(x, y) {
   const numbersAreaHeight = numbersAreaBottom - numbersAreaTop;
   
   const centerX = g.width / 2;
-  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 50;
+  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 35;
   
   let fontSize = map(smaller, 320, 1920, 7, 14);
   fontSize = constrain(fontSize, 6, 16);
