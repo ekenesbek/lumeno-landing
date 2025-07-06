@@ -53,9 +53,15 @@
         height: 100vh;
       }
       
-      /* Loading screen override */
-      .loadingclass {
-        position: absolute;
+      /* ВАЖНО: Скрываем стандартный p5 loading */
+      #p5_loading {
+        display: none !important;
+        visibility: hidden !important;
+      }
+      
+      /* Наш кастомный loading экран */
+      #custom-loading {
+        position: fixed;
         top: 0;
         left: 0;
         width: 100%;
@@ -67,13 +73,13 @@
         justify-content: center;
         font-family: 'IBM Plex Mono', monospace;
         font-size: 18px;
-        z-index: 10;
+        z-index: 9999;
         opacity: 1;
         transition: opacity 0.8s ease;
       }
       
-      /* Hide loading when p5 is ready */
-      .loadingclass.hidden {
+      /* Hide loading when game is ready */
+      #custom-loading.hidden {
         opacity: 0;
         pointer-events: none;
         visibility: hidden;
@@ -82,12 +88,19 @@
       /* Loading animation */
       .loading-text {
         position: relative;
+        text-align: center;
       }
       
       .loading-dots {
         display: inline-block;
         width: 30px;
         text-align: left;
+      }
+      
+      .loading-progress {
+        margin-top: 20px;
+        font-size: 14px;
+        opacity: 0.7;
       }
       
       /* Bottom navigation - only visible in game section */
@@ -312,13 +325,17 @@
     </style>
   </head>
   <body>
+    <!-- Кастомный Loading Screen (показывается сразу) -->
+    <div id="custom-loading">
+      <div class="loading-text">
+        Loading<span class="loading-dots" id="loadingDots">.</span>
+      </div>
+    </div>
+    
     <!-- Game Section -->
     <div id="game-section">
-      <div id="p5_loading" class="loadingclass">
-        <div class="loading-text">
-          Loading<span class="loading-dots" id="loadingDots">.</span>
-        </div>
-      </div>
+      <!-- Скрытый p5 loading -->
+      <div id="p5_loading" class="loadingclass">Loading...</div>
       
       <!-- Bottom Navigation -->
       <div class="bottom-nav">
@@ -361,7 +378,7 @@
       </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Scripts - ОРИГИНАЛЬНЫЙ ПОРЯДОК -->
     <script src="sketch.js"></script>
     <script src="osn.js"></script>
     <script src="bin.js"></script>
@@ -370,27 +387,13 @@
     <script src="macrodata.js"></script>
     
     <script>
-      // Force p5.js canvas to stay in game section
-      function ensureCanvasInGameSection() {
-        const canvas = document.querySelector('canvas');
-        const gameSection = document.getElementById('game-section');
-        
-        if (canvas && gameSection && !gameSection.contains(canvas)) {
-          console.log('Moving canvas to game section');
-          gameSection.appendChild(canvas);
-        }
-      }
+      // Переменные для отслеживания загрузки
+      let gameLoaded = false;
+      let loadingStartTime = Date.now();
       
-      // Smooth scroll functions
+      // Функции для плавного скролла
       function scrollToAbout() {
         document.getElementById('about-section').scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
-      
-      function scrollToTop() {
-        document.getElementById('game-section').scrollIntoView({
           behavior: 'smooth',
           block: 'start'
         });
@@ -400,7 +403,7 @@
         alert('Thanks for your interest! We\'ll be in touch soon.');
       }
       
-      // Intersection Observer for animations
+      // Intersection Observer для анимаций
       const observerOptions = {
         threshold: 0.3,
         rootMargin: '0px 0px -100px 0px'
@@ -416,7 +419,7 @@
         });
       }, observerOptions);
 
-      // Loading animation
+      // Анимация точек загрузки
       function animateLoadingDots() {
         const dots = document.getElementById('loadingDots');
         if (!dots) return;
@@ -425,74 +428,119 @@
         let currentState = 0;
         
         const interval = setInterval(() => {
-          if (dots && dots.parentElement && !dots.parentElement.parentElement.classList.contains('hidden')) {
+          const customLoading = document.getElementById('custom-loading');
+          if (customLoading && !customLoading.classList.contains('hidden')) {
             dots.textContent = states[currentState];
             currentState = (currentState + 1) % states.length;
           } else {
             clearInterval(interval);
           }
-        }, 500);
+        }, 400);
+        
+        return interval;
       }
       
-      // Start loading animation immediately
-      animateLoadingDots();
+      // Force canvas to stay in game section
+      function ensureCanvasInGameSection() {
+        const canvas = document.querySelector('canvas');
+        const gameSection = document.getElementById('game-section');
+        
+        if (canvas && gameSection && !gameSection.contains(canvas)) {
+          console.log('Moving canvas to game section');
+          gameSection.appendChild(canvas);
+        }
+      }
       
-      // Initialize when DOM is loaded
+      // Скрываем loading экран
+      function hideLoadingScreen() {
+        if (!gameLoaded) {
+          gameLoaded = true;
+          console.log('Hiding custom loading screen');
+          const customLoading = document.getElementById('custom-loading');
+          if (customLoading) {
+            customLoading.classList.add('hidden');
+          }
+        }
+      }
+      
+      // Старт анимации загрузки сразу
+      const dotsInterval = animateLoadingDots();
+      
+      // Инициализация после загрузки DOM
       document.addEventListener('DOMContentLoaded', () => {
         const aboutContent = document.getElementById('aboutContent');
-        const loadingScreen = document.getElementById('p5_loading');
         const bottomNav = document.querySelector('.bottom-nav');
         
         if (aboutContent) {
           observer.observe(aboutContent);
         }
         
-        // Much simpler loading detection
-        let gameLoaded = false;
-        let loadingStartTime = Date.now();
+        console.log('DOM loaded, starting game detection...');
         
-        const hideLoadingScreen = () => {
-          if (!gameLoaded && loadingScreen) {
-            gameLoaded = true;
-            console.log('Hiding loading screen');
-            loadingScreen.classList.add('hidden');
-          }
-        };
-        
-        // Check for p5 canvas every 200ms
+        // Проверяем готовность игры каждые 200ms
         const checkInterval = setInterval(() => {
           const canvas = document.querySelector('canvas');
           const gameSection = document.getElementById('game-section');
           
-          // Move canvas to game section if needed
+          // Перемещаем canvas в игровую секцию если нужно
           if (canvas && gameSection && !gameSection.contains(canvas)) {
+            console.log('Moving canvas to game section');
             gameSection.appendChild(canvas);
           }
           
-          // Check if canvas is ready (has content)
+          // Проверяем готовность canvas
           if (canvas && canvas.width > 0 && canvas.height > 0) {
-            // Wait at least 2 seconds to show loading
-            const elapsedTime = Date.now() - loadingStartTime;
-            if (elapsedTime >= 2000) {
-              hideLoadingScreen();
-              clearInterval(checkInterval);
-            } else {
-              // Wait until minimum time passes
-              setTimeout(() => {
+            console.log('Canvas is ready:', canvas.width, 'x', canvas.height);
+            
+            // Проверяем, рисуется ли что-то на canvas
+            try {
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                const imageData = ctx.getImageData(0, 0, 50, 50);
+                const hasContent = imageData.data.some((pixel, index) => {
+                  // Проверяем только каждый 4-й элемент (альфа канал)
+                  return index % 4 === 3 && pixel > 0;
+                });
+                
+                if (hasContent) {
+                  console.log('Canvas has content, game is ready');
+                  
+                  // Ждем минимум 7 секунд для показа loading
+                  const elapsedTime = Date.now() - loadingStartTime;
+                  const minLoadingTime = 5000;
+                  
+                  if (elapsedTime >= minLoadingTime) {
+                    hideLoadingScreen();
+                    clearInterval(checkInterval);
+                  } else {
+                    // Ждем оставшееся время
+                    setTimeout(() => {
+                      hideLoadingScreen();
+                      clearInterval(checkInterval);
+                    }, minLoadingTime - elapsedTime);
+                  }
+                }
+              }
+            } catch (e) {
+              console.log('Cannot check canvas content, using timer fallback');
+              // Если не можем проверить содержимое, ждем 8 секунд
+              const elapsedTime = Date.now() - loadingStartTime;
+              if (elapsedTime >= 8000) {
                 hideLoadingScreen();
                 clearInterval(checkInterval);
-              }, 2000 - elapsedTime);
+              }
             }
           }
         }, 200);
         
-        // Fallback: hide loading after 8 seconds no matter what
+        // Фоллбэк: скрываем loading через 12 секунд в любом случае
         setTimeout(() => {
+          console.log('Fallback: hiding loading screen after 12 seconds');
           hideLoadingScreen();
           clearInterval(checkInterval);
-        }, 8000);
+        }, 12000);
         
-        // Show/hide bottom navigation based on scroll position
+        // Показываем/скрываем нижнюю навигацию при скролле
         if (bottomNav) {
           window.addEventListener('scroll', () => {
             if (window.scrollY > window.innerHeight * 0.3) {
@@ -502,6 +550,18 @@
             }
           });
         }
+      });
+      
+      // Дополнительная проверка готовности p5
+      window.addEventListener('load', () => {
+        console.log('Window loaded event fired');
+        setTimeout(() => {
+          const canvas = document.querySelector('canvas');
+          if (canvas) {
+            console.log('Canvas found after window load');
+            ensureCanvasInGameSection();
+          }
+        }, 100);
       });
     </script>
   </body>

@@ -50,6 +50,10 @@ let shaderLayer, crtShader;
 let g; //p5 graphics instance
 let useShader;
 
+// Loading state management
+let assetsLoaded = false;
+let gameInitialized = false;
+
 // Background and Foreground colours
 const mobilePalette = {
   BG: '#010A13',
@@ -113,11 +117,23 @@ function startOver(resetFile = false) {
   // Create the space
   r = (smaller - buffer * 2) / 10;
   baseSize = r * 0.33;
-  osn = new OpenSimplexNoise();
+  
+  // Initialize noise generator
+  if (typeof OpenSimplexNoise !== 'undefined') {
+    osn = new OpenSimplexNoise();
+  } else {
+    console.log('OpenSimplexNoise not available, using fallback');
+    osn = {
+      noise3D: (x, y, z) => Math.sin(x * 0.1) * Math.cos(y * 0.1) * Math.sin(z * 0.1)
+    };
+  }
+  
   cols = floor(g.width / r);
   rows = floor((g.height - buffer * 2 - 80) / r); // Reserve space for bottom navigation
 
   let wBuffer = g.width - cols * r;
+  numbers = []; // Clear existing numbers
+  
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       let x = i * r + r * 0.5 + wBuffer * 0.5;
@@ -127,7 +143,7 @@ function startOver(resetFile = false) {
     }
   }
 
-  if (resetFile) {
+  if (resetFile && macrodataFile) {
     macrodataFile.resetFile();
     storeItem('secondsSpentRefining', 0);
     secondsSpentRefining = 0;
@@ -135,9 +151,10 @@ function startOver(resetFile = false) {
   }
 
   // Refinement bins
+  refined = []; // Clear existing bins
   for (let i = 0; i < 5; i++) {
     const w = g.width / 5;
-    const binLevels = macrodataFile.storedBins
+    const binLevels = (macrodataFile && macrodataFile.storedBins)
       ? macrodataFile.storedBins[i]
       : undefined;
     refined[i] = new Bin(w, i, goal / 5, binLevels);
@@ -150,7 +167,12 @@ function startOver(resetFile = false) {
   nope = false;
   completed = false;
   shared = false;
-  shareDiv.hide();
+  
+  if (shareDiv) {
+    shareDiv.hide();
+  }
+  
+  console.log('Game reset completed');
 }
 
 let zoff = 0;
@@ -164,7 +186,7 @@ function setup() {
   g = createGraphics(windowWidth, windowHeight);
 
   // We don't want to use shader on mobile
-  useShader = !isTouchScreenDevice();
+  useShader = !isTouchScreenDevice() && crtShader;
 
   // The shader boosts colour values so we reset the palette if using shader
   if (useShader) {
@@ -174,19 +196,92 @@ function setup() {
   // force pixel density to 1 to improve perf on retina screens
   pixelDensity(1);
 
-  // p5 graphics element to draw our shader output to
-  shaderLayer = createGraphics(g.width, g.height, WEBGL);
-  shaderLayer.noStroke();
-  crtShader.setUniform('u_resolution', [g.width, g.height]);
+  // p5 graphics element to draw our shader output to (only if shader available)
+  if (useShader && crtShader) {
+    try {
+      shaderLayer = createGraphics(g.width, g.height, WEBGL);
+      shaderLayer.noStroke();
+      crtShader.setUniform('u_resolution', [g.width, g.height]);
+      console.log('Shader initialized successfully');
+    } catch (e) {
+      console.log('Shader setup failed, disabling shader:', e);
+      useShader = false;
+      shaderLayer = null;
+    }
+  }
 
   smaller = min(g.width, g.height);
 
-  macrodataFile = new MacrodataFile();
+  // Initialize macrodata file
+  if (typeof MacrodataFile !== 'undefined') {
+    macrodataFile = new MacrodataFile();
+  } else {
+    console.log('MacrodataFile not available, using fallback');
+    macrodataFile = {
+      fileName: 'Fallback',
+      coordinates: '0x000 : 0x000',
+      storedBins: null,
+      updateProgress: () => {},
+      resetFile: () => {}
+    };
+  }
+
   secondsSpentRefining = getItem('secondsSpentRefining') ?? 0;
 
-  sharedImg.resize(smaller * 0.5, 0);
-  nopeImg.resize(smaller * 0.5, 0);
-  completedImg.resize(smaller * 0.5, 0);
+  // Create placeholder images if originals failed to load or resize existing ones
+  if (!lumeno) {
+    lumeno = createGraphics(100, 50);
+    lumeno.fill(palette.FG);
+    lumeno.textAlign(CENTER, CENTER);
+    lumeno.textSize(12);
+    lumeno.text('LUMENO', 50, 25);
+    console.log('Created lumeno placeholder');
+  }
+  
+  if (!nopeImg) {
+    nopeImg = createGraphics(smaller * 0.5, smaller * 0.3);
+    nopeImg.fill(255, 0, 0);
+    nopeImg.textAlign(CENTER, CENTER);
+    nopeImg.textSize(32);
+    nopeImg.text('NOPE', nopeImg.width/2, nopeImg.height/2);
+    console.log('Created nope placeholder');
+  } else {
+    try {
+      nopeImg.resize(smaller * 0.5, 0);
+    } catch (e) {
+      console.log('Error resizing nopeImg:', e);
+    }
+  }
+  
+  if (!completedImg) {
+    completedImg = createGraphics(smaller * 0.5, smaller * 0.3);
+    completedImg.fill(0, 255, 0);
+    completedImg.textAlign(CENTER, CENTER);
+    completedImg.textSize(32);
+    completedImg.text('100%', completedImg.width/2, completedImg.height/2);
+    console.log('Created completed placeholder');
+  } else {
+    try {
+      completedImg.resize(smaller * 0.5, 0);
+    } catch (e) {
+      console.log('Error resizing completedImg:', e);
+    }
+  }
+  
+  if (!sharedImg) {
+    sharedImg = createGraphics(smaller * 0.5, smaller * 0.3);
+    sharedImg.fill(0, 255, 255);
+    sharedImg.textAlign(CENTER, CENTER);
+    sharedImg.textSize(24);
+    sharedImg.text('SHARED', sharedImg.width/2, sharedImg.height/2);
+    console.log('Created shared placeholder');
+  } else {
+    try {
+      sharedImg.resize(smaller * 0.5, 0);
+    } catch (e) {
+      console.log('Error resizing sharedImg:', e);
+    }
+  }
 
   // Width for the share 100% button
   const shw = completedImg.width;
@@ -204,19 +299,39 @@ function setup() {
       }
       thenumbers += '\n';
     }
-    const timeStr = createTimeString(secondsSpentRefining);
+    const timeStr = createTimeString ? createTimeString(secondsSpentRefining) : `${secondsSpentRefining}s`;
     const msg = `In refining ${macrodataFile.coordinates} (${macrodataFile.fileName}) in ${timeStr} I have brought glory to the company.
 Praise Kier.
 ${thenumbers}#mdrlumon #severance 🧇🐐🔢💯
 lumon-industries.com`;
 
-    console.log('navigator share not available, copy to clipboard!');
-    navigator.clipboard.writeText(msg);
+    console.log('Copying to clipboard...');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(msg).then(() => {
+        console.log('Copied to clipboard successfully');
+      }).catch(err => {
+        console.log('Failed to copy to clipboard:', err);
+      });
+    }
     shared = true;
   });
 
   startOver();
+  
+  gameInitialized = true;
+  console.log('Setup completed, game initialized');
+  
+  // Ensure canvas is moved to the correct section
+  setTimeout(() => {
+    const canvas = document.querySelector('canvas');
+    const gameSection = document.getElementById('game-section');
+    if (canvas && gameSection && !gameSection.contains(canvas)) {
+      gameSection.appendChild(canvas);
+      console.log('Canvas moved to game section');
+    }
+  }, 100);
 }
+
 function mousePressed() {
   // Check if click is in the bottom navigation area (avoid interference)
   if (mouseY > windowHeight - 80) {
@@ -280,8 +395,10 @@ function mouseReleased() {
       }
     }
     const bin = random(options);
-    for (let num of refinery) {
-      num.refine(bin);
+    if (bin) {
+      for (let num of refinery) {
+        num.refine(bin);
+      }
     }
   } else {
     refinery = [];
@@ -296,6 +413,16 @@ function mouseReleased() {
 let prevPercent;
 
 function draw() {
+  if (!gameInitialized) {
+    // Show a simple loading screen in canvas while initializing
+    background(palette.BG);
+    fill(palette.FG);
+    textAlign(CENTER, CENTER);
+    textSize(24);
+    text('Loading...', width/2, height/2);
+    return;
+  }
+
   g.colorMode(RGB);
   let sum = 0;
   for (let bin of refined) {
@@ -303,7 +430,7 @@ function draw() {
   }
   let percent = sum / goal;
 
-  if (percent !== prevPercent) {
+  if (percent !== prevPercent && macrodataFile) {
     const bins = refined.map((bin) => bin.levels);
     macrodataFile.updateProgress(bins);
     prevPercent = percent;
@@ -373,49 +500,25 @@ function draw() {
     }
   }
 
-  if (mde) {
-    g.colorMode(HSB);
-    let dim = 5;
-    let yoff = 100;
-    let inc = 0;
-    let index = 0;
-    for (let i = 0; i < dim; i++) {
-      let xoff = 100;
-      for (let j = 0; j < dim; j++) {
-        const currGifFrame =
-          (frameCount + (i + j)) % mdeGIF[0].gifProperties.numFrames;
-        mdeGIF[0].setFrame(currGifFrame);
-        let w = g.width / dim;
-        let h = g.height / dim;
-        g.noStroke();
-        let hu = map(osn.noise3D(xoff, yoff, zoff * 2), -1, 1, -100, 500);
-        g.fill(hu, 255, 255, 0.2);
-        g.stroke(hu, 255, 255);
-        g.strokeWeight(4);
-        g.imageMode(CORNER);
-        g.image(mdeGIF[0], i * w, j * h, w, h);
-        index++;
-        g.rectMode(CORNER);
-        g.rect(i * w, j * h, w, h);
-        xoff += 5;
-      }
-      yoff += 5;
-    }
-  }
-
   drawCursor(mouseX, mouseY);
 
-  if (useShader) {
-    shaderLayer.rect(0, 0, g.width, g.height);
-    shaderLayer.shader(crtShader);
+  if (useShader && shaderLayer && crtShader) {
+    try {
+      shaderLayer.rect(0, 0, g.width, g.height);
+      shaderLayer.shader(crtShader);
 
-    // pass the image from canvas context in to shader as uniform
-    crtShader.setUniform('u_tex', g);
+      // pass the image from canvas context in to shader as uniform
+      crtShader.setUniform('u_tex', g);
 
-    // Resetting the backgroudn to black to check we're not seeing the original drawing output
-    background(palette.BG);
-    imageMode(CORNER);
-    image(shaderLayer, 0, 0, g.width, g.height);
+      // Resetting the background to black to check we're not seeing the original drawing output
+      background(palette.BG);
+      imageMode(CORNER);
+      image(shaderLayer, 0, 0, g.width, g.height);
+    } catch (e) {
+      console.log('Shader rendering failed, falling back to normal rendering:', e);
+      useShader = false;
+      image(g, 0, 0, g.width, g.height);
+    }
   } else {
     image(g, 0, 0, g.width, g.height);
   }
@@ -638,7 +741,9 @@ function drawBottom() {
   g.textFont('Courier');
   g.textAlign(CENTER, CENTER);
   g.textSize(baseSize * 0.8);
-  g.text(macrodataFile.coordinates, g.width * 0.5, g.height - 90); // Moved up to avoid bottom nav
+  if (macrodataFile) {
+    g.text(macrodataFile.coordinates, g.width * 0.5, g.height - 90); // Moved up to avoid bottom nav
+  }
 }
 
 function drawBinned() {
@@ -686,30 +791,58 @@ function drawCursor(xPos, yPos) {
 function windowResized(ev) {
   resizeCanvas(windowWidth, windowHeight);
   g.resizeCanvas(windowWidth, windowHeight);
-  shaderLayer.resizeCanvas(windowWidth, windowHeight)
-  crtShader.setUniform('u_resolution', [g.width, g.height]);
+  
+  if (useShader && shaderLayer && crtShader) {
+    try {
+      shaderLayer.resizeCanvas(windowWidth, windowHeight);
+      crtShader.setUniform('u_resolution', [g.width, g.height]);
+    } catch (e) {
+      console.log('Error resizing shader:', e);
+    }
+  }
 
   smaller = min(g.width, g.height);
 
-  sharedImg.resize(smaller * 0.5, 0);
-  nopeImg.resize(smaller * 0.5, 0);
-  completedImg.resize(smaller * 0.5, 0);
+  // Resize images if they exist and have resize method
+  try {
+    if (sharedImg && typeof sharedImg.resize === 'function') {
+      sharedImg.resize(smaller * 0.5, 0);
+    }
+    if (nopeImg && typeof nopeImg.resize === 'function') {
+      nopeImg.resize(smaller * 0.5, 0);
+    }
+    if (completedImg && typeof completedImg.resize === 'function') {
+      completedImg.resize(smaller * 0.5, 0);
+    }
+  } catch (e) {
+    console.log('Error resizing images:', e);
+  }
   
-  refined.forEach((bin) => bin.resize(g.width / refined.length));
+  if (refined && refined.length > 0) {
+    refined.forEach((bin) => {
+      if (bin && typeof bin.resize === 'function') {
+        bin.resize(g.width / refined.length);
+      }
+    });
+  }
   
   r = (smaller - buffer * 2) / 10;
   baseSize = r * 0.33;
    
   cols = floor(g.width / r);
   rows = floor((g.height - buffer * 2 - 80) / r); // Reserve space for bottom navigation
-  let  wBuffer =  g.width - cols * r;
+  let wBuffer = g.width - cols * r;
   
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
-      let x = i * r + r * 0.5 + wBuffer * 0.5;
-      let y = j * r + r * 0.5 + buffer;
-      const numToUpdate = numbers[i + j * cols];
-      if (numToUpdate) numToUpdate.resize(x, y);
+  if (numbers && numbers.length > 0) {
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        let x = i * r + r * 0.5 + wBuffer * 0.5;
+        let y = j * r + r * 0.5 + buffer;
+        const numToUpdate = numbers[i + j * cols];
+        if (numToUpdate && typeof numToUpdate.resize === 'function') {
+          numToUpdate.resize(x, y);
+        }
+      }
     }
   }
 }
