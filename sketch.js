@@ -77,7 +77,6 @@ const shaderPalette = {
 
 let palette = mobilePalette;
 
-// ASCII Art для Lumeno Industries
 const lumenoAsciiLogo = [
   "██╗      ██╗   ██╗ ███╗   ███╗ ███████╗ ███╗   ██╗  ██████╗",
   "██║      ██║   ██║ ████╗ ████║ ██╔════╝ ████╗  ██║ ██╔═══██╗",
@@ -224,6 +223,10 @@ function mousePressed() {
     return; // Don't start refining if clicking in bottom nav area
   }
   
+  if (isInLogoArea(mouseX, mouseY)) {
+    return;
+  }
+  
   if (!refining && !mde && !completed && !shared) {
     refineTX = mouseX;
     refineTY = mouseY;
@@ -254,6 +257,10 @@ function mouseReleased() {
   let total = 0;
   let refinery = [];
   for (let num of numbers) {
+    if (isInLogoArea(num.homeX, num.homeY)) {
+      continue;
+    }
+    
     if (num.inside(refineTX, refineTY, refineBX, refineBY)) {
       if (num.refined) {
         refinery.push(num);
@@ -432,36 +439,36 @@ function drawLumenoAsciiLogo() {
   
   // Центрируем логотип в области с цифрами, но поднимаем выше
   const centerX = numbersAreaWidth / 2;
-  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 50; // поднимаем на 50 пикселей выше
+  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 50;
   
   // Настройки для ASCII текста
   g.textFont('Courier New', 'monospace');
   g.textAlign(CENTER, CENTER);
   
   // Определяем размер шрифта в зависимости от размера экрана (уменьшаем)
-  let fontSize = map(smaller, 320, 1920, 7, 14); // уменьшили с 8-16 до 6-12
-  fontSize = constrain(fontSize, 6, 16); // уменьшили с 6-20 до 4-14
+  let fontSize = map(smaller, 320, 1920, 7, 14);
+  fontSize = constrain(fontSize, 6, 16);
   g.textSize(fontSize);
   
   // Полупрозрачный фон для лучшей читаемости (делаем ещё более прозрачным)
-  const bgAlpha = 0.06; // уменьшили с 0.1 до 0.06
+  const bgAlpha = 0.06;
   g.fill(red(palette.FG), green(palette.FG), blue(palette.FG), bgAlpha * 255);
   g.noStroke();
   
   // Вычисляем размеры блока текста
-  const lineHeight = fontSize * 1.1; // уменьшили межстрочный интервал с 1.2 до 1.1
+  const lineHeight = fontSize * 1.1;
   const totalHeight = lumenoAsciiLogo.length * lineHeight;
   const maxLineWidth = max(lumenoAsciiLogo.map(line => line.length));
-  const totalWidth = maxLineWidth * fontSize * 0.55; // уменьшили ширину с 0.6 до 0.55
+  const totalWidth = maxLineWidth * fontSize * 0.55;
   
   // Рисуем полупрозрачный фон (делаем меньше)
   g.rectMode(CENTER);
-  g.rect(centerX, centerY, totalWidth + 30, totalHeight + 30); // уменьшили отступы с 40 до 30
+  g.rect(centerX, centerY, totalWidth + 30, totalHeight + 30);
   
   // Рисуем ASCII логотип
   g.fill(palette.FG);
   g.stroke(palette.FG);
-  g.strokeWeight(0.3); // уменьшили толщину обводки с 0.5 до 0.3
+  g.strokeWeight(0.3);
   
   const startY = centerY - totalHeight / 2 + lineHeight / 2;
   
@@ -475,8 +482,8 @@ function drawLumenoAsciiLogo() {
     
     // Дополнительный эффект свечения (опционально)
     if (useShader) {
-      g.fill(red(palette.FG), green(palette.FG), blue(palette.FG), 30); // уменьшили с 50 до 30
-      g.text(line, centerX + 0.5, y + 0.5); // уменьшили смещение с 1 до 0.5
+      g.fill(red(palette.FG), green(palette.FG), blue(palette.FG), 30);
+      g.text(line, centerX + 0.5, y + 0.5);
     }
   }
 }
@@ -512,6 +519,33 @@ function drawTop(percent) {
   g.stroke(palette.FG);
 }
 
+function isInLogoArea(x, y) {
+  const numbersAreaTop = buffer;
+  const numbersAreaBottom = g.height - buffer;
+  const numbersAreaHeight = numbersAreaBottom - numbersAreaTop;
+  
+  const centerX = g.width / 2;
+  const centerY = numbersAreaTop + numbersAreaHeight / 2 - 50;
+  
+  let fontSize = map(smaller, 320, 1920, 7, 14);
+  fontSize = constrain(fontSize, 6, 16);
+  
+  const lineHeight = fontSize * 1.1;
+  const totalHeight = lumenoAsciiLogo.length * lineHeight;
+  const maxLineWidth = max(lumenoAsciiLogo.map(line => line.length));
+  const totalWidth = maxLineWidth * fontSize * 0.55;
+  
+  const extraHorizontalBuffer = 80; 
+  const extraVerticalBuffer = 20;  
+  
+  const logoLeft = centerX - (totalWidth + 30 + extraHorizontalBuffer) / 2;
+  const logoRight = centerX + (totalWidth + 30 + extraHorizontalBuffer) / 2;
+  const logoTop = centerY - (totalHeight + 30 + extraVerticalBuffer) / 2;
+  const logoBottom = centerY + (totalHeight + 30 + extraVerticalBuffer) / 2;
+  
+  return (x >= logoLeft && x <= logoRight && y >= logoTop && y <= logoBottom);
+}
+
 function drawNumbers() {
   g.rectMode(CENTER);
   g.noFill();
@@ -527,6 +561,11 @@ function drawNumbers() {
     for (let j = 0; j < rows; j++) {
       let num = numbers[i + j * cols];
       if (!num) return;
+      
+      if (isInLogoArea(num.homeX, num.homeY) && !num.binIt) {
+        xoff += inc;
+        continue;
+      }
       
       if (num.binIt) {
         num.goBin();
@@ -551,6 +590,11 @@ function drawNumbers() {
       } else {
         num.goHome();
       }
+      
+      if (isInLogoArea(num.x, num.y) && !num.binIt) {
+        num.goHome();
+      }
+      
       num.size(sz);
       num.show();
       xoff += inc;
