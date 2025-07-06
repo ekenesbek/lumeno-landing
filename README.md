@@ -1,17 +1,17 @@
 
 <!-- add Severance TV show Lumeno Industries logo -->
 
-![](images/lumon-globe.png)
+![](images/lumeno.png)
 
 # Macrodata Refinement
 
-Congratulations on your new job! All of us are thrilled you've become a part of Lumon Industries.
+Congratulations on your new job! All of us are thrilled you've become a part of Lumeno Industries.
 
-From the humble beginnings of a small topical salve company to the world's leading pioneer in biotechnologies Lumon has thrived thanks to workers like you.
+From the humble beginnings of a small topical salve company to the world's leading pioneer in biotechnologies Lumeno has thrived thanks to workers like you.
 
-Welcome to the Lumon Family!
+Welcome to the Lumeno Family!
 
-https://lumon-industries.com
+https://lumeno.industries
 
 ## How will I know what to work on?
 
@@ -38,4 +38,4 @@ MA: These numbers elicit rage or a desire to do harm.
 
 This is a sample of what your file might look like. If you find clusters of numbers that look scary, you should bin them.
 
-![](images/lumon-anim.gif)
+<!-- ![](images/lumon-anim.gif) -->
